@@ -63,8 +63,8 @@ export function HelpButton() {
             {faqs.map((faq, index) => (
               <div key={index} className="space-y-2">
                 <div className="flex items-start gap-2">
-                  <div className="p-1.5 rounded bg-muted shrink-0 mt-0.5">
-                    <faq.icon className="h-3.5 w-3.5" />
+                  <div className="p-1.5 rounded bg-primary/10 shrink-0 mt-0.5">
+                    <faq.icon className="h-3.5 w-3.5 text-primary" />
                   </div>
                   <div className="space-y-1">
                     <p className="font-medium text-sm">{faq.question}</p>

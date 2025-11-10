@@ -51,25 +51,25 @@ export default function Home() {
   return (
     <div className="flex-1 space-y-6 p-8 pt-6">
       {/* Hero Section */}
-      <div className="relative overflow-hidden rounded border bg-card p-8">
+      <div className="relative overflow-hidden rounded-lg bg-gradient-to-br from-primary/10 via-primary/5 to-background border border-primary/20 p-6 md:p-8">
         <div className="relative z-10">
           <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 rounded bg-black dark:bg-white">
-              <Gavel className="h-6 w-6 text-white dark:text-black" />
+            <div className="p-2 rounded-lg bg-primary/10">
+              <Gavel className="h-5 w-5 md:h-6 md:w-6 text-primary" />
             </div>
-            <h1 className="text-4xl font-bold tracking-tight">Justice Oracle</h1>
+            <h1 className="text-2xl md:text-4xl font-bold tracking-tight">Justice Oracle</h1>
           </div>
-          <p className="text-lg text-muted-foreground max-w-2xl">
+          <p className="text-sm md:text-lg text-muted-foreground max-w-2xl">
             AI-powered decentralized arbitration • Fair • Transparent • On-chain
           </p>
-          <div className="flex gap-4 mt-6">
-            <div className="bg-muted rounded px-4 py-2 border">
-              <p className="text-sm text-muted-foreground">Active Disputes</p>
-              <p className="text-2xl font-bold">{activeDisputes}</p>
+          <div className="flex flex-col sm:flex-row gap-3 md:gap-4 mt-4 md:mt-6">
+            <div className="bg-card rounded-lg px-4 py-2 border">
+              <p className="text-xs md:text-sm text-muted-foreground">Active Disputes</p>
+              <p className="text-xl md:text-2xl font-bold text-primary">{activeDisputes}</p>
             </div>
-            <div className="bg-muted rounded px-4 py-2 border">
-              <p className="text-sm text-muted-foreground">Total Resolved</p>
-              <p className="text-2xl font-bold">{resolvedCount}</p>
+            <div className="bg-card rounded-lg px-4 py-2 border">
+              <p className="text-xs md:text-sm text-muted-foreground">Total Resolved</p>
+              <p className="text-xl md:text-2xl font-bold text-green-600">{resolvedCount}</p>
             </div>
           </div>
         </div>

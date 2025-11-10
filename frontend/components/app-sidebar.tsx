@@ -28,8 +28,8 @@ export function AppSidebar() {
     <Sidebar>
       <SidebarHeader className="border-b p-4">
         <div className="flex items-center gap-2">
-          <div className="bg-black dark:bg-white p-2 rounded">
-            <Scale className="h-5 w-5 text-white dark:text-black" />
+          <div className="bg-gradient-to-br from-indigo-500 to-purple-600 p-2 rounded-lg">
+            <Scale className="h-5 w-5 text-white" />
           </div>
           <div>
             <h2 className="font-bold text-lg">Justice Oracle</h2>
