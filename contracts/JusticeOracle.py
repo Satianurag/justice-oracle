@@ -1,6 +1,7 @@
 # { "Depends": "py-genlayer:test" }
 
 from genlayer import *
+from genlayer.py.storage import DynArray
 from dataclasses import dataclass
 import json
 
@@ -11,7 +12,7 @@ class Dispute:
     plaintiff: Address
     defendant: Address
     case_description: str
-    evidence_urls: tuple
+    evidence_urls: DynArray  # GenLayer storage-compatible dynamic array
     stake_amount: u256
     status: str
     verdict: str
@@ -79,7 +80,7 @@ class JusticeOracle(gl.Contract):
             plaintiff=gl.message.sender_address,
             defendant=defendant,
             case_description=case_description,
-            evidence_urls=tuple(evidence_urls),
+            evidence_urls=evidence_urls,  # Auto-converts list to DynArray
             stake_amount=gl.message.value,
             status="evidence_gathering",
             verdict="",
