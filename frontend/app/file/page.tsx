@@ -28,7 +28,7 @@ export default function FilePage() {
       <Alert>
         <Info className="h-4 w-4" />
         <AlertDescription>
-          Required stake: 100 tokens. The AI will analyze all evidence and issue a fair verdict.
+          Required stake: Only 10 tokens! Super affordable. The AI will analyze all evidence and issue a fair verdict.
         </AlertDescription>
       </Alert>
       

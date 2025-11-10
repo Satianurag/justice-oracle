@@ -43,9 +43,11 @@ class JusticeOracle(gl.Contract):
     def __init__(self):
         self.dispute_counter = u256(0)
         self.evidence_counter = u256(0)
-        self.platform_fee = u256(2)
-        self.min_stake = u256(100)
-        self.max_evidence_urls = u256(5)
+        self.platform_fee = u256(1)  # 1% - super low fee
+        self.min_stake = u256(10)  # Only 10 tokens to file - very affordable
+        self.max_evidence_urls = u256(5)  # Max 5 URLs per dispute
+        
+        # Initialize VectorStore for legal precedent search
         self.precedents = VectorStore()
     
     @gl.public.write.payable

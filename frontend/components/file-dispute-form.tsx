@@ -77,7 +77,7 @@ export function FileDisputeForm({ onDisputeFiled }: FileDisputeFormProps) {
         defendant,
         caseDescription,
         validUrls,
-        100 // Min stake amount
+        10 // Min stake - super affordable!
       )
       
       if (result.success) {
