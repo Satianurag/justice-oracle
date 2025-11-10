@@ -57,9 +57,17 @@ export function AppSidebar() {
       </SidebarContent>
       
       <SidebarFooter className="border-t p-4">
-        <div className="text-xs text-muted-foreground">
-          <p className="font-medium">Justice Oracle v1.0</p>
-          <p className="mt-1">Powered by GenLayer</p>
+        <div className="flex items-center justify-between text-xs">
+          <div className="text-muted-foreground">
+            <p className="font-medium">Justice Oracle v1.0</p>
+            <p className="mt-1">Powered by GenLayer</p>
+          </div>
+          {process.env.NEXT_PUBLIC_CONTRACT_ADDRESS && (
+            <div className="flex items-center gap-1.5">
+              <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+              <span className="text-[10px] text-green-600 font-medium">LIVE</span>
+            </div>
+          )}
         </div>
       </SidebarFooter>
     </Sidebar>
