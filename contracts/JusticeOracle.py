@@ -19,6 +19,10 @@ class Dispute:
     confidence_score: u8
     plaintiff_distribution: u8
     defendant_distribution: u8
+    created_at: u256  # Timestamp
+    resolved_at: u256  # Timestamp
+    evidence_deadline: u256  # Timestamp
+    appeal_deadline: u256  # Timestamp
 
 @allow_storage
 @dataclass
@@ -29,6 +33,7 @@ class Evidence:
     evidence_type: str
     content: str
     credibility_score: u8
+    submitted_at: u256  # Timestamp
 
 class JusticeOracle(gl.Contract):
     disputes: TreeMap[u256, Dispute]
@@ -38,13 +43,21 @@ class JusticeOracle(gl.Contract):
     platform_fee: u256
     min_stake: u256
     max_evidence_urls: u256
+    treasury: Address
+    admin: Address
+    evidence_period_days: u256  # Days for evidence gathering
+    appeal_period_days: u256  # Days for appeals
     
-    def __init__(self):
+    def __init__(self, treasury_address: str):
         self.dispute_counter = u256(0)
         self.evidence_counter = u256(0)
         self.platform_fee = u256(1)  # 1% - super low fee
         self.min_stake = u256(10)  # Only 10 tokens to file - very affordable
         self.max_evidence_urls = u256(5)  # Max 5 URLs per dispute
+        self.treasury = Address(treasury_address)
+        self.admin = gl.message.sender_address
+        self.evidence_period_days = u256(7)  # 7 days for evidence
+        self.appeal_period_days = u256(3)  # 3 days for appeals
     
     def _serialize_urls(self, evidence_urls: list) -> str:
         """Convert list to pipe-delimited string for storage"""
@@ -55,6 +68,12 @@ class JusticeOracle(gl.Contract):
         if not serialized:
             return []
         return serialized.split("|||")
+    
+    def _get_current_time(self) -> u256:
+        """Get current timestamp (placeholder - GenLayer may have built-in time)"""
+        # Note: Using block-based time or nondet time if available
+        # For now, using a simple incrementing counter as proxy
+        return u256(0)  # TODO: Replace with actual timestamp mechanism
     
     @gl.public.write.payable
     def file_dispute(
@@ -84,6 +103,9 @@ class JusticeOracle(gl.Contract):
         
         defendant = Address(defendant_address)
         
+        current_time = self._get_current_time()
+        evidence_deadline = current_time + (self.evidence_period_days * u256(86400))  # Days to seconds
+        
         dispute = Dispute(
             dispute_id=dispute_id,
             plaintiff=gl.message.sender_address,
@@ -96,7 +118,11 @@ class JusticeOracle(gl.Contract):
             reasoning="",
             confidence_score=u8(0),
             plaintiff_distribution=u8(0),
-            defendant_distribution=u8(0)
+            defendant_distribution=u8(0),
+            created_at=current_time,
+            resolved_at=u256(0),
+            evidence_deadline=evidence_deadline,
+            appeal_deadline=u256(0)
         )
         
         self.disputes[dispute_id] = dispute
@@ -119,6 +145,11 @@ class JusticeOracle(gl.Contract):
         if dispute.status != "evidence_gathering":
             raise Exception("Evidence gathering period closed")
         
+        # Check evidence deadline
+        current_time = self._get_current_time()
+        if current_time > dispute.evidence_deadline:
+            raise Exception("Evidence submission deadline has passed")
+        
         if gl.message.sender_address != dispute.plaintiff and gl.message.sender_address != dispute.defendant:
             raise Exception("Only parties can submit evidence")
         
@@ -136,7 +167,8 @@ class JusticeOracle(gl.Contract):
             submitted_by=gl.message.sender_address,
             evidence_type=evidence_type,
             content=content,
-            credibility_score=credibility
+            credibility_score=credibility,
+            submitted_at=current_time
         )
         
         self.evidence[evidence_id] = evidence
@@ -160,12 +192,17 @@ class JusticeOracle(gl.Contract):
         
         verdict_data = self._ai_judicial_analysis(dispute, all_evidence)
         
+        current_time = self._get_current_time()
+        appeal_deadline = current_time + (self.appeal_period_days * u256(86400))  # Days to seconds
+        
         dispute.verdict = verdict_data["verdict"]
         dispute.reasoning = verdict_data["reasoning"]
         dispute.confidence_score = u8(verdict_data["confidence"])
         dispute.plaintiff_distribution = u8(verdict_data["recommended_distribution"]["plaintiff_percent"])
         dispute.defendant_distribution = u8(verdict_data["recommended_distribution"]["defendant_percent"])
         dispute.status = "resolved"
+        dispute.resolved_at = current_time
+        dispute.appeal_deadline = appeal_deadline
         
         self.disputes[dispute_id] = dispute
         
@@ -364,6 +401,10 @@ Return ONLY an integer between 0 and 100, nothing else."""
         platform_fee_amount = (total_stake * self.platform_fee) / u256(100)
         distributable_amount = total_stake - platform_fee_amount
         
+        # Transfer platform fee to treasury
+        if platform_fee_amount > u256(0):
+            gl.transfer(self.treasury, platform_fee_amount)
+        
         # Calculate amounts based on distribution percentages
         plaintiff_amount = (distributable_amount * u256(dispute.plaintiff_distribution)) / u256(100)
         defendant_amount = (distributable_amount * u256(dispute.defendant_distribution)) / u256(100)
@@ -420,7 +461,11 @@ Return ONLY an integer between 0 and 100, nothing else."""
             "distribution": {
                 "plaintiff_percent": int(dispute.plaintiff_distribution),
                 "defendant_percent": int(dispute.defendant_distribution)
-            }
+            },
+            "created_at": int(dispute.created_at),
+            "resolved_at": int(dispute.resolved_at),
+            "evidence_deadline": int(dispute.evidence_deadline),
+            "appeal_deadline": int(dispute.appeal_deadline)
         }
     
     @gl.public.view
@@ -469,5 +514,79 @@ Return ONLY an integer between 0 and 100, nothing else."""
             "total_disputes": int(self.dispute_counter),
             "total_evidence_submitted": int(self.evidence_counter),
             "min_stake": int(self.min_stake),
-            "platform_fee_percent": int(self.platform_fee)
+            "platform_fee_percent": int(self.platform_fee),
+            "treasury": self.treasury.as_hex,
+            "evidence_period_days": int(self.evidence_period_days),
+            "appeal_period_days": int(self.appeal_period_days)
         }
+    
+    @gl.public.view
+    def get_disputes_paginated(self, offset: u256, limit: u256) -> dict:
+        """Get paginated disputes list"""
+        
+        if limit > u256(100):
+            limit = u256(100)  # Max 100 per page
+        
+        disputes_list = []
+        end = offset + limit
+        if end > self.dispute_counter:
+            end = self.dispute_counter
+        
+        for i in range(int(offset), int(end)):
+            dispute = self.disputes.get(u256(i))
+            if dispute:
+                disputes_list.append({
+                    "dispute_id": int(dispute.dispute_id),
+                    "plaintiff": dispute.plaintiff.as_hex,
+                    "defendant": dispute.defendant.as_hex,
+                    "status": dispute.status,
+                    "verdict": dispute.verdict,
+                    "created_at": int(dispute.created_at),
+                    "resolved_at": int(dispute.resolved_at)
+                })
+        
+        return {
+            "disputes": disputes_list,
+            "total": int(self.dispute_counter),
+            "offset": int(offset),
+            "limit": int(limit)
+        }
+    
+    # Admin functions
+    @gl.public.write
+    def set_min_stake(self, new_min_stake: u256) -> None:
+        """Admin: Update minimum stake (1-1000 tokens)"""
+        if gl.message.sender_address != self.admin:
+            raise Exception("Only admin can call this")
+        
+        if new_min_stake < u256(1) or new_min_stake > u256(1000):
+            raise Exception("Min stake must be between 1 and 1000 tokens")
+        
+        self.min_stake = new_min_stake
+    
+    @gl.public.write
+    def set_platform_fee(self, new_fee: u256) -> None:
+        """Admin: Update platform fee (0-10%)"""
+        if gl.message.sender_address != self.admin:
+            raise Exception("Only admin can call this")
+        
+        if new_fee > u256(10):
+            raise Exception("Platform fee cannot exceed 10%")
+        
+        self.platform_fee = new_fee
+    
+    @gl.public.write
+    def set_treasury(self, new_treasury: str) -> None:
+        """Admin: Update treasury address"""
+        if gl.message.sender_address != self.admin:
+            raise Exception("Only admin can call this")
+        
+        self.treasury = Address(new_treasury)
+    
+    @gl.public.write
+    def transfer_admin(self, new_admin: str) -> None:
+        """Admin: Transfer admin rights"""
+        if gl.message.sender_address != self.admin:
+            raise Exception("Only admin can call this")
+        
+        self.admin = Address(new_admin)
