@@ -1,6 +1,10 @@
 "use client"
 
 import { useRouter } from "next/navigation"
+
+// Force dynamic rendering
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
 import { FileDisputeFormEnhanced } from "@/components/file-dispute-form-enhanced"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
