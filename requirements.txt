@@ -1,0 +1,11 @@
+# GenLayer SDK requirements
+# Note: These are automatically provided by GenLayer Studio
+# No manual installation needed when using the Studio
+
+# GenLayer Python SDK (provided by studio)
+# py-genlayer:test
+
+# Standard library dependencies (built-in)
+# - json
+# - dataclasses
+# - typing
