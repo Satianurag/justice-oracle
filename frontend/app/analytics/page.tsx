@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 
 // Force dynamic rendering
 export const dynamic = 'force-dynamic'
-export const revalidate = 0
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Badge } from "@/components/ui/badge"
