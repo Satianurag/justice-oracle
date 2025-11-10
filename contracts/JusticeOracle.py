@@ -1,7 +1,6 @@
 # { "Depends": "py-genlayer:test" }
 
 from genlayer import *
-from genlayer.py.storage import VectorStore
 from dataclasses import dataclass
 import json
 
@@ -34,7 +33,6 @@ class Evidence:
 class JusticeOracle(gl.Contract):
     disputes: TreeMap[u256, Dispute]
     evidence: TreeMap[u256, Evidence]
-    precedents: VectorStore
     dispute_counter: u256
     evidence_counter: u256
     platform_fee: u256
@@ -47,9 +45,6 @@ class JusticeOracle(gl.Contract):
         self.platform_fee = u256(1)  # 1% - super low fee
         self.min_stake = u256(10)  # Only 10 tokens to file - very affordable
         self.max_evidence_urls = u256(5)  # Max 5 URLs per dispute
-        
-        # Initialize VectorStore for legal precedent search
-        self.precedents = VectorStore()
     
     @gl.public.write.payable
     def file_dispute(
@@ -95,9 +90,6 @@ class JusticeOracle(gl.Contract):
         )
         
         self.disputes[dispute_id] = dispute
-        
-        # Store case in vector database for precedent search
-        self.precedents.insert(str(dispute_id), case_description)
         
         return dispute_id
     
@@ -173,13 +165,12 @@ class JusticeOracle(gl.Contract):
         return verdict_data
     
     def _gather_comprehensive_evidence(self, dispute_id: u256) -> dict:
-        """Fetch evidence from multiple sources including web scraping and precedents"""
+        """Fetch evidence from multiple sources including web scraping"""
         
         dispute = self.disputes.get(dispute_id)
         evidence_collection = {
             "web_evidence": [],
-            "submitted_evidence": [],
-            "precedents": []
+            "submitted_evidence": []
         }
         
         # Gather web evidence with resource limits
@@ -210,21 +201,6 @@ class JusticeOracle(gl.Contract):
                     "credibility": int(evidence.credibility_score),
                     "submitted_by": "plaintiff" if evidence.submitted_by == dispute.plaintiff else "defendant"
                 })
-        
-        # Search for similar precedents using vector store
-        try:
-            similar_cases = self.precedents.search(dispute.case_description, limit=3)
-            for case_id in similar_cases:
-                if case_id != str(dispute_id):  # Don't include current case
-                    past_dispute = self.disputes.get(u256(int(case_id)))
-                    if past_dispute and past_dispute.status == "resolved":
-                        evidence_collection["precedents"].append({
-                            "case_id": case_id,
-                            "verdict": past_dispute.verdict,
-                            "confidence": int(past_dispute.confidence_score)
-                        })
-        except Exception:
-            pass  # Precedents are optional
         
         return evidence_collection
     
