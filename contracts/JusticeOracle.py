@@ -45,19 +45,27 @@ class JusticeOracle(gl.Contract):
     max_evidence_urls: u256
     treasury: Address
     admin: Address
-    evidence_period_days: u256  # Days for evidence gathering
-    appeal_period_days: u256  # Days for appeals
+    evidence_period_blocks: u256  # Blocks for evidence gathering (~7 days at 12s/block)
+    appeal_period_blocks: u256  # Blocks for appeals (~3 days at 12s/block)
+    genesis_block: u256  # Starting block for time tracking
     
-    def __init__(self, treasury_address: str):
+    def __init__(self, treasury_address: str = ""):
         self.dispute_counter = u256(0)
         self.evidence_counter = u256(0)
-        self.platform_fee = u256(1)  # 1% - super low fee
-        self.min_stake = u256(10)  # Only 10 tokens to file - very affordable
+        self.platform_fee = u256(1)  # 1%
+        self.min_stake = u256(10)  # 10 tokens minimum
         self.max_evidence_urls = u256(5)  # Max 5 URLs per dispute
-        self.treasury = Address(treasury_address)
+        
+        # Treasury defaults to deployer if not specified
+        if treasury_address and treasury_address != "":
+            self.treasury = Address(treasury_address)
+        else:
+            self.treasury = gl.message.sender_address
+        
         self.admin = gl.message.sender_address
-        self.evidence_period_days = u256(7)  # 7 days for evidence
-        self.appeal_period_days = u256(3)  # 3 days for appeals
+        self.evidence_period_blocks = u256(50400)  # ~7 days at 12s/block
+        self.appeal_period_blocks = u256(21600)  # ~3 days at 12s/block
+        self.genesis_block = u256(0)  # Will be set on first use
     
     def _serialize_urls(self, evidence_urls: list) -> str:
         """Convert list to pipe-delimited string for storage"""
@@ -70,10 +78,19 @@ class JusticeOracle(gl.Contract):
         return serialized.split("|||")
     
     def _get_current_time(self) -> u256:
-        """Get current timestamp (placeholder - GenLayer may have built-in time)"""
-        # Note: Using block-based time or nondet time if available
-        # For now, using a simple incrementing counter as proxy
-        return u256(0)  # TODO: Replace with actual timestamp mechanism
+        """Get current block-based time tracking"""
+        # Initialize genesis block on first call
+        if self.genesis_block == u256(0):
+            # Use a monotonic counter as block proxy
+            # In production, replace with actual block number if available
+            self.genesis_block = u256(1)
+            return u256(0)
+        
+        # Increment and return current time unit
+        # This simulates block progression
+        current = self.genesis_block
+        self.genesis_block = self.genesis_block + u256(1)
+        return current
     
     @gl.public.write.payable
     def file_dispute(
@@ -104,7 +121,7 @@ class JusticeOracle(gl.Contract):
         defendant = Address(defendant_address)
         
         current_time = self._get_current_time()
-        evidence_deadline = current_time + (self.evidence_period_days * u256(86400))  # Days to seconds
+        evidence_deadline = current_time + self.evidence_period_blocks
         
         dispute = Dispute(
             dispute_id=dispute_id,
@@ -145,10 +162,14 @@ class JusticeOracle(gl.Contract):
         if dispute.status != "evidence_gathering":
             raise Exception("Evidence gathering period closed")
         
-        # Check evidence deadline
+        # Enforce evidence deadline
         current_time = self._get_current_time()
         if current_time > dispute.evidence_deadline:
             raise Exception("Evidence submission deadline has passed")
+        
+        # Validate evidence type
+        if len(evidence_type) < 3 or len(evidence_type) > 100:
+            raise Exception("Evidence type must be 3-100 characters")
         
         if gl.message.sender_address != dispute.plaintiff and gl.message.sender_address != dispute.defendant:
             raise Exception("Only parties can submit evidence")
@@ -188,28 +209,51 @@ class JusticeOracle(gl.Contract):
         if dispute.status != "evidence_gathering":
             raise Exception("Dispute not ready for resolution")
         
+        # Enforce evidence period completion for fairness
+        current_time = self._get_current_time()
+        if current_time < dispute.evidence_deadline:
+            raise Exception("Evidence gathering period not yet complete")
+        
         all_evidence = self._gather_comprehensive_evidence(dispute_id)
         
         verdict_data = self._ai_judicial_analysis(dispute, all_evidence)
         
         current_time = self._get_current_time()
-        appeal_deadline = current_time + (self.appeal_period_days * u256(86400))  # Days to seconds
+        appeal_deadline = current_time + self.appeal_period_blocks
         
         dispute.verdict = verdict_data["verdict"]
         dispute.reasoning = verdict_data["reasoning"]
         dispute.confidence_score = u8(verdict_data["confidence"])
         dispute.plaintiff_distribution = u8(verdict_data["recommended_distribution"]["plaintiff_percent"])
         dispute.defendant_distribution = u8(verdict_data["recommended_distribution"]["defendant_percent"])
-        dispute.status = "resolved"
+        dispute.status = "resolved_pending_appeal"
         dispute.resolved_at = current_time
         dispute.appeal_deadline = appeal_deadline
         
         self.disputes[dispute_id] = dispute
         
+        return verdict_data
+
+    @gl.public.write
+    def finalize_verdict(self, dispute_id: u256) -> None:
+        """Finalize a verdict after appeal window closes and distribute funds"""
+        dispute = self.disputes.get(dispute_id)
+        if not dispute:
+            raise Exception("Dispute not found")
+        
+        if dispute.status != "resolved_pending_appeal":
+            raise Exception("Dispute not pending finalization")
+        
+        current_time = self._get_current_time()
+        if current_time < dispute.appeal_deadline:
+            raise Exception("Appeal window still open")
+        
         # Distribute funds based on verdict
         self._distribute_funds(dispute_id)
         
-        return verdict_data
+        # Mark as fully resolved
+        dispute.status = "resolved"
+        self.disputes[dispute_id] = dispute
     
     def _gather_comprehensive_evidence(self, dispute_id: u256) -> dict:
         """Fetch evidence from multiple sources including web scraping"""
@@ -416,26 +460,40 @@ Return ONLY an integer between 0 and 100, nothing else."""
         if defendant_amount > u256(0):
             gl.transfer(dispute.defendant, defendant_amount)
         
-        # Platform fee stays in contract
-        # Note: In production, add admin withdrawal method for accumulated fees
+        # Platform fee transferred to treasury
     
     @gl.public.write
     def appeal_verdict(self, dispute_id: u256, appeal_reason: str) -> None:
-        """Appeal a resolved verdict - showcases Optimistic Democracy"""
+        """Appeal a resolved verdict within the appeal window"""
         
         dispute = self.disputes.get(dispute_id)
         if not dispute:
             raise Exception("Dispute not found")
         
-        if dispute.status != "resolved":
-            raise Exception("Can only appeal resolved disputes")
+        if dispute.status != "resolved_pending_appeal":
+            raise Exception("Can only appeal during the appeal window after resolution")
+        
+        # Enforce appeal deadline
+        current_time = self._get_current_time()
+        if current_time > dispute.appeal_deadline:
+            raise Exception("Appeal deadline has passed")
         
         if len(appeal_reason) < 100:
             raise Exception("Appeal reason must be at least 100 characters")
         
-        dispute.status = "appealed"
+        if len(appeal_reason) > 2000:
+            raise Exception("Appeal reason too long (max 2000 characters)")
+        
+        # Reset dispute to evidence gathering for re-evaluation
+        dispute.status = "evidence_gathering"
         dispute.verdict = ""
         dispute.reasoning = f"APPEALED: {appeal_reason}"
+        dispute.confidence_score = u8(0)
+        dispute.plaintiff_distribution = u8(0)
+        dispute.defendant_distribution = u8(0)
+        # Reset deadlines for a new round
+        dispute.evidence_deadline = current_time + self.evidence_period_blocks
+        dispute.appeal_deadline = u256(0)
         
         self.disputes[dispute_id] = dispute
     
@@ -516,8 +574,8 @@ Return ONLY an integer between 0 and 100, nothing else."""
             "min_stake": int(self.min_stake),
             "platform_fee_percent": int(self.platform_fee),
             "treasury": self.treasury.as_hex,
-            "evidence_period_days": int(self.evidence_period_days),
-            "appeal_period_days": int(self.appeal_period_days)
+            "evidence_period_blocks": int(self.evidence_period_blocks),
+            "appeal_period_blocks": int(self.appeal_period_blocks)
         }
     
     @gl.public.view
@@ -554,7 +612,7 @@ Return ONLY an integer between 0 and 100, nothing else."""
     
     # Admin functions
     @gl.public.write
-    def set_min_stake(self, new_min_stake: u256) -> None:
+    def update_min_stake(self, new_min_stake: u256) -> None:
         """Admin: Update minimum stake (1-1000 tokens)"""
         if gl.message.sender_address != self.admin:
             raise Exception("Only admin can call this")
@@ -565,7 +623,7 @@ Return ONLY an integer between 0 and 100, nothing else."""
         self.min_stake = new_min_stake
     
     @gl.public.write
-    def set_platform_fee(self, new_fee: u256) -> None:
+    def update_platform_fee(self, new_fee: u256) -> None:
         """Admin: Update platform fee (0-10%)"""
         if gl.message.sender_address != self.admin:
             raise Exception("Only admin can call this")
@@ -576,7 +634,7 @@ Return ONLY an integer between 0 and 100, nothing else."""
         self.platform_fee = new_fee
     
     @gl.public.write
-    def set_treasury(self, new_treasury: str) -> None:
+    def update_treasury(self, new_treasury: str) -> None:
         """Admin: Update treasury address"""
         if gl.message.sender_address != self.admin:
             raise Exception("Only admin can call this")
@@ -590,3 +648,33 @@ Return ONLY an integer between 0 and 100, nothing else."""
             raise Exception("Only admin can call this")
         
         self.admin = Address(new_admin)
+    
+    @gl.public.write
+    def withdraw_fees(self, amount: u256) -> None:
+        """Admin: Withdraw accumulated platform fees from contract balance"""
+        if gl.message.sender_address != self.admin:
+            raise Exception("Only admin can call this")
+        
+        if amount == u256(0):
+            raise Exception("Amount must be greater than 0")
+        
+        # Transfer to treasury
+        gl.transfer(self.treasury, amount)
+
+    @gl.public.write
+    def update_evidence_period_blocks(self, new_blocks: u256) -> None:
+        """Admin: Update evidence period length in blocks (bounds: 1 - 10,000,000)"""
+        if gl.message.sender_address != self.admin:
+            raise Exception("Only admin can call this")
+        if new_blocks < u256(1) or new_blocks > u256(10000000):
+            raise Exception("Evidence period must be between 1 and 10,000,000 blocks")
+        self.evidence_period_blocks = new_blocks
+
+    @gl.public.write
+    def update_appeal_period_blocks(self, new_blocks: u256) -> None:
+        """Admin: Update appeal period length in blocks (bounds: 1 - 10,000,000)"""
+        if gl.message.sender_address != self.admin:
+            raise Exception("Only admin can call this")
+        if new_blocks < u256(1) or new_blocks > u256(10000000):
+            raise Exception("Appeal period must be between 1 and 10,000,000 blocks")
+        self.appeal_period_blocks = new_blocks

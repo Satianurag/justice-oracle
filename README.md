@@ -4,7 +4,7 @@
 
 A production-ready dispute resolution platform leveraging GenLayer's Intelligent Contracts for fair, transparent, and AI-powered arbitration on-chain.
 
-**Status:** ✅ Production Ready - Contract & Frontend Complete
+**Status:** ✅ Production Ready - Full-Featured AI Arbitration Platform
 
 ---
 
@@ -15,12 +15,28 @@ A production-ready dispute resolution platform leveraging GenLayer's Intelligent
 - Node.js 18+ (for frontend)
 - GenLayer Studio account
 
+### Get Testnet Tokens
+
+1. Visit [GenLayer Studio Faucet](https://studio.genlayer.com/faucet)
+2. Request testnet tokens for deployment and testing
+3. Note: You need tokens to deploy the contract and file disputes
+
 ### Deploy Smart Contract
 
+**Option 1: GenLayer Studio (Recommended)**
 1. Open [GenLayer Studio](https://studio.genlayer.com/)
 2. Upload `contracts/JusticeOracle.py`
 3. Deploy to testnet
+   - **Treasury Address** (optional): Your wallet address to receive platform fees
+   - If not specified, deployer wallet receives fees automatically
 4. Copy the contract address
+
+**Option 2: Terminal Deployment**
+```bash
+python3 deploy_local.py
+# OR
+bash deploy.sh
+```
 
 ### Run Frontend
 
@@ -28,8 +44,11 @@ A production-ready dispute resolution platform leveraging GenLayer's Intelligent
 cd frontend
 npm install
 
-# Create .env.local
-echo "NEXT_PUBLIC_GENLAYER_RPC=http://localhost:8545" > .env.local
+# Configure with your contract address
+python3 configure_frontend.py <your_contract_address>
+
+# OR manually create .env.local:
+echo "NEXT_PUBLIC_GENLAYER_RPC=https://studio.genlayer.com/api" > .env.local
 echo "NEXT_PUBLIC_CONTRACT_ADDRESS=<your_contract_address>" >> .env.local
 echo "NEXT_PUBLIC_NETWORK=testnet" >> .env.local
 
@@ -42,26 +61,33 @@ Open http://localhost:3000
 
 ## 🌟 Project Overview
 
-Justice Oracle is a decentralized arbitration platform powered by GenLayer's Intelligent Contracts. It uses multi-LLM consensus to resolve disputes fairly, transparently, and at machine speed.
+Justice Oracle is a decentralized arbitration platform powered by GenLayer's Intelligent Contracts. It uses multi-LLM consensus to resolve disputes fairly, transparently, and with verifiable AI reasoning.
 
-## 🎯 What Makes This Special
+### 💰 Treasury Address Explained
 
-This project showcases **EVERY** GenLayer unique capability:
+The **treasury address** is your wallet where platform fees (1% of stakes) are sent. 
+- If not specified during deployment, the deployer's wallet becomes the treasury
+- Platform fees accumulate and can be withdrawn by admin
+- Change treasury address later using the `update_treasury()` admin function
 
-### ✅ Features No Other Submission Has:
-- **Custom Validator Logic** - 8-point judicial quality validation
-- **Multi-Source Evidence** - Web scraping + user submissions + credibility AI
-- **Subjective Reasoning** - AI makes fairness judgments (impossible on Ethereum)
-- **Appeal Mechanism** - Showcases Optimistic Democracy
-- **Complete Lifecycle** - File → Evidence → Resolution → Appeal
+## 🎯 Key Features
+
+### ✅ Production-Ready Capabilities:
+- **Custom Validator Logic** - 8-point judicial quality validation ensures fair verdicts
+- **Multi-Source Evidence** - Web scraping + user submissions + AI credibility scoring
+- **Subjective Reasoning** - AI makes fairness judgments impossible on traditional blockchains
+- **Appeal Mechanism** - Time-bound appeal windows with re-evaluation
+- **Complete Lifecycle** - File → Evidence → Resolution → Appeal → Distribution
+- **Deadline Enforcement** - Evidence and appeal deadlines strictly enforced
+- **Admin Controls** - Treasury management and fee withdrawal
 
 ### ✅ GenLayer Capabilities Demonstrated:
 1. **gl.nondet.web.render()** - Scrapes evidence from URLs
 2. **gl.nondet.exec_prompt()** - AI analyzes evidence and credibility
 3. **gl.vm.run_nondet()** - Custom consensus with validator logic
-4. **Optimistic Democracy** - Appeal triggers re-evaluation
-5. **Complex State Management** - TreeMap storage for disputes/evidence
-6. **Transparent AI** - Full reasoning stored on-chain
+4. **Complex State Management** - TreeMap storage for disputes/evidence
+5. **Transparent AI** - Full reasoning stored on-chain
+6. **Time-Based Logic** - Block-based deadline enforcement
 
 ## 🏗️ Architecture
 
@@ -71,7 +97,7 @@ This project showcases **EVERY** GenLayer unique capability:
 - **AI Resolution** - Multi-LLM consensus with custom validation
 - **Appeal Process** - Challenge verdicts (Optimistic Democracy)
 
-### Key Components:
+### Core Architecture:
 
 #### Dispute Structure
 ```python
@@ -138,6 +164,7 @@ verdict = contract.resolve_dispute(dispute_id=0)
 # 3. AI Leader generates verdict with reasoning
 # 4. Validators check quality (8 validation rules)
 # 5. Consensus reached → verdict stored on-chain
+# 6. Status becomes: "resolved_pending_appeal" and an appeal window opens
 
 # Returns:
 {
@@ -160,13 +187,20 @@ verdict = contract.resolve_dispute(dispute_id=0)
 }
 ```
 
-### 4. Appeal (Optional)
+### 4. Finalize (Distribute Funds)
+```python
+# After the appeal window closes, finalize to distribute funds
+contract.finalize_verdict(dispute_id=0)
+```
+
+### 5. Appeal (Optional)
 ```python
 contract.appeal_verdict(
     dispute_id=0,
     appeal_reason="AI didn't consider evidence of changed requirements..."
 )
 # Triggers new evaluation round (Optimistic Democracy)
+# Status returns to "evidence_gathering" with new deadlines
 ```
 
 ## 🧠 AI Consensus Magic
@@ -194,7 +228,13 @@ def validator_fn(leader_result):
 - `file_dispute()` - Create new dispute
 - `submit_evidence()` - Add evidence (both parties)
 - `resolve_dispute()` - Trigger AI resolution
-- `appeal_verdict()` - Challenge decision
+- `finalize_verdict()` - After appeal window closes, distribute funds
+- `appeal_verdict()` - Challenge decision during the appeal window
+- `update_min_stake(new_min)` - Admin: update min stake
+- `update_platform_fee(new_fee)` - Admin: update platform fee
+- `update_treasury(new_address)` - Admin: update treasury address
+- `update_evidence_period_blocks(new_blocks)` - Admin: set evidence window
+- `update_appeal_period_blocks(new_blocks)` - Admin: set appeal window
 
 ### View Methods
 - `get_dispute(dispute_id)` - Full dispute details
@@ -251,13 +291,13 @@ python test_justice_oracle.py
 4. **DeFi Issues** - "Smart contract behavior dispute"
 5. **NFT Trades** - "Artwork quality disagreement"
 
-## 📈 Future Enhancements
+## 📈 Roadmap
 
-- Vector Store for precedent search
-- Multi-signature evidence verification
-- Reputation system for parties
-- Staking/slashing for false claims
-- Integration with escrow contracts
+- **Vector Store** - Precedent search for similar past cases
+- **Reputation System** - Track party behavior across disputes
+- **Multi-Signature** - Evidence verification by third parties
+- **Staking/Slashing** - Penalties for frivolous disputes
+- **Escrow Integration** - Automatic fund holding during disputes
 
 ## 🔧 Technical Stack
 
@@ -276,19 +316,39 @@ python test_justice_oracle.py
 4. Test with multiple validators
 5. Observe AI consensus in action
 
-### Contract Address:
-```
-[To be deployed on GenLayer Testnet]
-```
+### Production Deployment Checklist:
+- [ ] Get testnet tokens from faucet
+- [ ] Deploy contract (with optional treasury address)
+- [ ] Configure frontend with contract address
+- [ ] Test dispute filing and resolution
+- [ ] Verify appeal mechanism works
+- [ ] Check fee distribution to treasury
 
 ## 📝 License
 
 MIT License - Built for GenLayer Hackathon Nov 2024
 
-## 🙏 Acknowledgments
+## 🔑 Important Notes
 
-Built using GenLayer's revolutionary Intelligent Contracts platform that brings AI reasoning to blockchain consensus.
+### Testnet Tokens
+- **Faucet**: https://studio.genlayer.com/faucet
+- Request tokens for deployment and testing
+- Minimum 10 tokens required to file a dispute
+
+### Treasury Management
+- **Treasury = Your wallet** where platform fees are sent
+- Default: Deployer's wallet if not specified
+- Admin can update treasury address anytime
+- Admin can withdraw accumulated fees using `withdraw_fees()`
+
+### Time-Based Constraints
+- Evidence period: ~7 days (50,400 blocks at 12s/block)
+- Appeal period: ~3 days (21,600 blocks)
+- Deadlines strictly enforced by smart contract
+- For testing, admins can set shorter windows using:
+  - `update_evidence_period_blocks(100)`
+  - `update_appeal_period_blocks(50)`
 
 ---
 
-**Justice Oracle - Where AI Meets Justice, Trustlessly.**
+**Justice Oracle - Production-Ready AI Arbitration on GenLayer**

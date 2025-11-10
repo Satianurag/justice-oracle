@@ -1,7 +1,7 @@
 "use client"
 
 import { useRouter } from "next/navigation"
-import { FileDisputeForm } from "@/components/file-dispute-form"
+import { FileDisputeFormEnhanced } from "@/components/file-dispute-form-enhanced"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Info } from "lucide-react"
@@ -32,7 +32,7 @@ export default function FilePage() {
         </AlertDescription>
       </Alert>
       
-      <FileDisputeForm onDisputeFiled={handleDisputeFiled} />
+      <FileDisputeFormEnhanced onDisputeFiled={handleDisputeFiled} />
       
       <Card className="border-dashed">
         <CardHeader>

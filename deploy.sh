@@ -1,5 +1,5 @@
 #!/bin/bash
-# Justice Oracle - One-Command Deployment Script
+# Justice Oracle - Production Deployment Script
 
 set -e
 
@@ -72,9 +72,9 @@ echo "  1. cd frontend"
 echo "  2. npm run dev"
 echo "  3. Open http://localhost:3000"
 echo ""
-echo "💰 Costs (super affordable!):"
-echo "  • File dispute: 10 tokens (stake)"
+echo "💰 Platform Fees:"
+echo "  • File dispute: 10 tokens (minimum stake)"
 echo "  • Submit evidence: ~1 token (gas)"
 echo "  • Platform fee: 1% of stake"
 echo ""
-echo "🎬 Ready to demo!"
+echo "✅ Contract deployed and ready!"

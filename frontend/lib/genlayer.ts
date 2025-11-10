@@ -1,18 +1,36 @@
 // Configuration
 const RPC_URL = process.env.NEXT_PUBLIC_GENLAYER_RPC || 'http://localhost:8545'
 const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || ''
-const NETWORK = process.env.NEXT_PUBLIC_NETWORK || 'testnet'
 
-// Simple fetch-based client for GenLayer contract calls
-async function callContract(method: string, args: any[], options: { value?: number; write?: boolean } = {}) {
+// Store the client instance (set by WalletProvider)
+let clientInstance: any | null = null
+let walletType: 'metamask' | 'genlayer' | null = null
+
+export function setClient(client: any) {
+  clientInstance = client
+}
+
+export function getClient() {
+  return clientInstance
+}
+
+export function setWalletType(type: 'metamask' | 'genlayer' | null) {
+  walletType = type
+}
+
+export function getWalletType() {
+  return walletType
+}
+
+// Helper for read-only contract calls (no wallet needed)
+async function readContract(method: string, args: any[] = []) {
   const payload = {
     jsonrpc: '2.0',
-    method: options.write ? 'gl_writeContract' : 'gl_readContract',
+    method: 'gl_readContract',
     params: [{
       address: CONTRACT_ADDRESS,
       method,
       args,
-      ...(options.value ? { value: options.value } : {}),
     }],
     id: Date.now(),
   }
@@ -36,6 +54,85 @@ async function callContract(method: string, args: any[], options: { value?: numb
   return result.result
 }
 
+// Helper for write contract calls (requires wallet)
+async function writeContract(functionName: string, args: any[], value: number = 0) {
+  // Check wallet type from localStorage if not set
+  const currentWalletType = walletType || localStorage.getItem('wallet_type')
+  
+  if (currentWalletType === 'metamask') {
+    return await writeContractMetaMask(functionName, args, value)
+  } else if (currentWalletType === 'genlayer') {
+    return await writeContractGenLayer(functionName, args, value)
+  } else {
+    throw new Error('Wallet not connected. Please connect your wallet first.')
+  }
+}
+
+// GenLayer wallet write
+async function writeContractGenLayer(functionName: string, args: any[], value: number = 0) {
+  if (!clientInstance) {
+    throw new Error('GenLayer wallet not connected.')
+  }
+  
+  const hash = await clientInstance.writeContract({
+    address: CONTRACT_ADDRESS as `0x${string}`,
+    functionName,
+    args,
+    value,
+  })
+  
+  // Wait for transaction to be finalized
+  const receipt = await clientInstance.waitForTransactionReceipt({
+    hash,
+  })
+  
+  return receipt
+}
+
+// MetaMask wallet write using JSON-RPC
+async function writeContractMetaMask(functionName: string, args: any[], value: number = 0) {
+  if (!window.ethereum) {
+    throw new Error('MetaMask not available')
+  }
+
+  const accounts = await window.ethereum.request({ method: 'eth_accounts' })
+  if (!accounts || accounts.length === 0) {
+    throw new Error('No MetaMask account connected')
+  }
+
+  // Use GenLayer's JSON-RPC for contract writes
+  const payload = {
+    jsonrpc: '2.0',
+    method: 'gl_writeContract',
+    params: [{
+      from: accounts[0],
+      address: CONTRACT_ADDRESS,
+      method: functionName,
+      args,
+      value,
+    }],
+    id: Date.now(),
+  }
+
+  const response = await fetch(RPC_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+
+  if (!response.ok) {
+    throw new Error(`RPC error: ${response.statusText}`)
+  }
+
+  const result = await response.json()
+
+  if (result.error) {
+    throw new Error(result.error.message || 'Contract write failed')
+  }
+
+  return result
+}
+
 // Contract interaction functions
 export async function fileDispute(
   defendantAddress: string,
@@ -44,15 +141,15 @@ export async function fileDispute(
   stakeAmount: number
 ) {
   try {
-    const result = await callContract(
+    const receipt = await writeContract(
       'file_dispute',
       [defendantAddress, caseDescription, evidenceUrls],
-      { value: stakeAmount, write: true }
+      stakeAmount
     )
     
     return {
       success: true,
-      disputeId: result,
+      disputeId: receipt.result || 0,
     }
   } catch (error: any) {
     return {
@@ -68,15 +165,14 @@ export async function submitEvidence(
   content: string
 ) {
   try {
-    const result = await callContract(
+    const receipt = await writeContract(
       'submit_evidence',
-      [disputeId, evidenceType, content],
-      { write: true }
+      [disputeId, evidenceType, content]
     )
     
     return {
       success: true,
-      evidenceId: result,
+      evidenceId: receipt.result || 0,
     }
   } catch (error: any) {
     return {
@@ -88,15 +184,14 @@ export async function submitEvidence(
 
 export async function resolveDispute(disputeId: number) {
   try {
-    const result = await callContract(
+    const receipt = await writeContract(
       'resolve_dispute',
-      [disputeId],
-      { write: true }
+      [disputeId]
     )
     
     return {
       success: true,
-      verdict: result,
+      verdict: receipt.result,
     }
   } catch (error: any) {
     return {
@@ -106,12 +201,29 @@ export async function resolveDispute(disputeId: number) {
   }
 }
 
+export async function finalizeVerdict(disputeId: number) {
+  try {
+    await writeContract(
+      'finalize_verdict',
+      [disputeId]
+    )
+    
+    return {
+      success: true,
+    }
+  } catch (error: any) {
+    return {
+      success: false,
+      error: error.message || 'Failed to finalize verdict',
+    }
+  }
+}
+
 export async function appealVerdict(disputeId: number, appealReason: string) {
   try {
-    await callContract(
+    await writeContract(
       'appeal_verdict',
-      [disputeId, appealReason],
-      { write: true }
+      [disputeId, appealReason]
     )
     
     return {
@@ -127,7 +239,7 @@ export async function appealVerdict(disputeId: number, appealReason: string) {
 
 export async function getDispute(disputeId: number) {
   try {
-    const result = await callContract('get_dispute', [disputeId])
+    const result = await readContract('get_dispute', [disputeId])
     
     return {
       success: true,
@@ -143,7 +255,7 @@ export async function getDispute(disputeId: number) {
 
 export async function getAllDisputes() {
   try {
-    const result = await callContract('get_all_disputes', [])
+    const result = await readContract('get_all_disputes', [])
     
     return {
       success: true,
@@ -160,7 +272,7 @@ export async function getAllDisputes() {
 
 export async function getDisputeEvidence(disputeId: number) {
   try {
-    const result = await callContract('get_dispute_evidence', [disputeId])
+    const result = await readContract('get_dispute_evidence', [disputeId])
     
     return {
       success: true,
@@ -177,7 +289,7 @@ export async function getDisputeEvidence(disputeId: number) {
 
 export async function getStats() {
   try {
-    const result = await callContract('get_stats', [])
+    const result = await readContract('get_stats', [])
     
     return {
       success: true,
@@ -193,7 +305,7 @@ export async function getStats() {
 
 export async function getDisputesPaginated(offset: number, limit: number) {
   try {
-    const result = await callContract('get_disputes_paginated', [offset, limit])
+    const result = await readContract('get_disputes_paginated', [offset, limit])
     
     return {
       success: true,
@@ -257,5 +369,4 @@ export function isContractConfigured(): boolean {
 export const config = {
   rpcUrl: RPC_URL,
   contractAddress: CONTRACT_ADDRESS,
-  network: NETWORK,
 }

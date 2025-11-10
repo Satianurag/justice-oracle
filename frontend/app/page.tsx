@@ -2,48 +2,84 @@
 
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { DisputesTable } from "@/components/disputes-table"
-import { Scale, TrendingUp, Users, CheckCircle2 } from "lucide-react"
+import { DisputesTablePaginated } from "@/components/disputes-table-paginated"
+import { Scale, TrendingUp, Users, CheckCircle2, Gavel, Clock } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
-import { getStats, isContractConfigured } from "@/lib/genlayer"
+import { Badge } from "@/components/ui/badge"
+import { getStats, isContractConfigured, getAllDisputes } from "@/lib/genlayer"
+import { useRouter } from "next/navigation"
+import { EmptyState } from "@/components/empty-state"
 
 export default function Home() {
+  const router = useRouter()
   const [stats, setStats] = useState<any>(null)
+  const [disputes, setDisputes] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [selectedDispute, setSelectedDispute] = useState<number | null>(null)
   
   useEffect(() => {
-    loadStats()
+    loadData()
   }, [])
   
-  async function loadStats() {
+  async function loadData() {
     if (!isContractConfigured()) {
       setLoading(false)
       return
     }
     
     try {
-      const result = await getStats()
-      if (result.success) {
-        setStats(result.stats)
+      const [statsResult, disputesResult] = await Promise.all([
+        getStats(),
+        getAllDisputes()
+      ])
+      
+      if (statsResult.success) {
+        setStats(statsResult.stats)
+      }
+      if (disputesResult.success) {
+        setDisputes(disputesResult.disputes)
       }
     } catch (error) {
-      console.error('Failed to load stats:', error)
+      console.error('Failed to load data:', error)
     } finally {
       setLoading(false)
     }
   }
+  
+  const activeDisputes = disputes.filter(d => d.status === "evidence_gathering").length
+  const resolvedCount = disputes.filter(d => d.status === "resolved" || d.status === "resolved_pending_appeal").length
   return (
-    <div className="flex-1 space-y-4 p-8 pt-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
-          <p className="text-sm text-muted-foreground mt-1">
-            Real-time platform metrics and recent activity
+    <div className="flex-1 space-y-6 p-8 pt-6">
+      {/* Hero Section */}
+      <div className="relative overflow-hidden rounded border bg-card p-8">
+        <div className="relative z-10">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="p-2 rounded bg-black dark:bg-white">
+              <Gavel className="h-6 w-6 text-white dark:text-black" />
+            </div>
+            <h1 className="text-4xl font-bold tracking-tight">Justice Oracle</h1>
+          </div>
+          <p className="text-lg text-muted-foreground max-w-2xl">
+            AI-powered decentralized arbitration • Fair • Transparent • On-chain
           </p>
+          <div className="flex gap-4 mt-6">
+            <div className="bg-muted rounded px-4 py-2 border">
+              <p className="text-sm text-muted-foreground">Active Disputes</p>
+              <p className="text-2xl font-bold">{activeDisputes}</p>
+            </div>
+            <div className="bg-muted rounded px-4 py-2 border">
+              <p className="text-sm text-muted-foreground">Total Resolved</p>
+              <p className="text-2xl font-bold">{resolvedCount}</p>
+            </div>
+          </div>
         </div>
       </div>
       
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      {/* Stats Section */}
+      <div>
+        <h2 className="text-2xl font-bold tracking-tight mb-4">Platform Metrics</h2>
+      
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Disputes</CardTitle>
@@ -111,17 +147,35 @@ export default function Home() {
             )}
           </CardContent>
         </Card>
+        </div>
       </div>
       
+      {/* Recent Activity */}
       <Card>
         <CardHeader>
-          <CardTitle>Recent Activity</CardTitle>
-          <CardDescription>
-            Latest disputes and resolutions
-          </CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Recent Disputes</CardTitle>
+              <CardDescription>
+                Latest disputes filed on the platform
+              </CardDescription>
+            </div>
+            <Badge variant="outline" className="text-xs">
+              <Clock className="h-3 w-3 mr-1" />
+              Live
+            </Badge>
+          </div>
         </CardHeader>
         <CardContent>
-          <DisputesTable />
+          {!isContractConfigured() ? (
+            <EmptyState type="no-config" />
+          ) : disputes.length === 0 ? (
+            <EmptyState type="no-disputes" />
+          ) : (
+            <DisputesTablePaginated 
+              onViewDetails={(id) => router.push(`/disputes?id=${id}`)}
+            />
+          )}
         </CardContent>
       </Card>
     </div>

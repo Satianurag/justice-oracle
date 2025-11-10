@@ -1,6 +1,6 @@
 "use client"
 
-import { Scale, Gavel, FileText, BarChart3 } from "lucide-react"
+import { Scale, Gavel, FileText, BarChart3, Shield } from "lucide-react"
 import { NetworkStatus } from "@/components/network-status"
 import {
   Sidebar,
@@ -20,6 +20,7 @@ const menuItems = [
   { title: "Disputes", icon: Gavel, url: "/disputes" },
   { title: "File Dispute", icon: FileText, url: "/file" },
   { title: "Analytics", icon: BarChart3, url: "/analytics" },
+  { title: "Admin", icon: Shield, url: "/admin" },
 ]
 
 export function AppSidebar() {
@@ -27,8 +28,8 @@ export function AppSidebar() {
     <Sidebar>
       <SidebarHeader className="border-b p-4">
         <div className="flex items-center gap-2">
-          <div className="bg-gradient-to-br from-indigo-500 to-purple-600 p-2 rounded-lg">
-            <Scale className="h-5 w-5 text-white" />
+          <div className="bg-black dark:bg-white p-2 rounded">
+            <Scale className="h-5 w-5 text-white dark:text-black" />
           </div>
           <div>
             <h2 className="font-bold text-lg">Justice Oracle</h2>

@@ -1,107 +1,159 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { checkHealth } from "@/lib/genlayer"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { Activity } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
+import { Separator } from "@/components/ui/separator"
+import { Activity, CheckCircle2, AlertCircle, XCircle, RefreshCw } from "lucide-react"
+import { checkHealth, config } from "@/lib/genlayer"
+import { toast } from "sonner"
 
 export function NetworkStatus() {
-  const [status, setStatus] = useState<{
-    status: string
-    latency: number
-    contractConfigured: boolean
-  } | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [status, setStatus] = useState<"healthy" | "degraded" | "down" | "unknown">("unknown")
+  const [latency, setLatency] = useState<number>(0)
+  const [contractConfigured, setContractConfigured] = useState(false)
+  const [checking, setChecking] = useState(false)
 
   useEffect(() => {
-    async function checkStatus() {
-      const health = await checkHealth()
-      if (health.success) {
-        setStatus({
-          status: health.status,
-          latency: health.latency,
-          contractConfigured: health.contractConfigured || false,
-        })
-      } else {
-        setStatus({
-          status: 'down',
-          latency: 0,
-          contractConfigured: false,
-        })
-      }
-      setLoading(false)
-    }
-
-    checkStatus()
-    const interval = setInterval(checkStatus, 30000) // Check every 30s
-
+    checkNetworkStatus()
+    const interval = setInterval(checkNetworkStatus, 30000)
     return () => clearInterval(interval)
   }, [])
 
-  if (loading) {
-    return (
-      <div className="flex items-center gap-1.5">
-        <div className="h-2 w-2 rounded-full bg-gray-400 animate-pulse" />
-        <span className="text-[10px] text-muted-foreground">Checking...</span>
-      </div>
-    )
+  async function checkNetworkStatus() {
+    const result = await checkHealth()
+    if (result.success) {
+      setStatus(result.status as any)
+      setLatency(result.latency || 0)
+      setContractConfigured(result.contractConfigured || false)
+    } else {
+      setStatus("down")
+    }
   }
 
-  if (!status) return null
+  async function handleRefresh() {
+    setChecking(true)
+    toast.loading("Checking network status...", { id: "network" })
+    await checkNetworkStatus()
+    toast.success("Network status updated", { id: "network" })
+    setChecking(false)
+  }
 
   const statusConfig = {
-    healthy: {
-      color: 'bg-green-500',
-      text: 'text-green-600',
-      label: 'HEALTHY',
-      description: 'All systems operational',
+    healthy: { 
+      icon: CheckCircle2, 
+      label: "Healthy", 
+      color: "text-green-600",
+      bgColor: "bg-green-100 dark:bg-green-950"
     },
-    degraded: {
-      color: 'bg-yellow-500',
-      text: 'text-yellow-600',
-      label: 'SLOW',
-      description: 'Network experiencing high latency',
+    degraded: { 
+      icon: AlertCircle, 
+      label: "Degraded", 
+      color: "text-yellow-600",
+      bgColor: "bg-yellow-100 dark:bg-yellow-950"
     },
-    down: {
-      color: 'bg-red-500',
-      text: 'text-red-600',
-      label: 'DOWN',
-      description: 'Cannot connect to network',
+    down: { 
+      icon: XCircle, 
+      label: "Down", 
+      color: "text-red-600",
+      bgColor: "bg-red-100 dark:bg-red-950"
     },
+    unknown: { 
+      icon: Activity, 
+      label: "Unknown", 
+      color: "text-gray-600",
+      bgColor: "bg-gray-100 dark:bg-gray-950"
+    }
   }
 
-  const config = statusConfig[status.status as keyof typeof statusConfig] || statusConfig.down
+  const current = statusConfig[status]
+  const Icon = current.icon
 
   return (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <div className="flex items-center gap-1.5 cursor-help">
-            <div className={`h-2 w-2 rounded-full ${config.color} ${status.status === 'healthy' ? 'animate-pulse' : ''}`} />
-            <span className={`text-[10px] font-medium ${config.text}`}>
-              {config.label}
-            </span>
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="ghost" size="sm" className="gap-2">
+          <Icon className={`h-4 w-4 ${current.color}`} />
+          <span className="text-xs">{current.label}</span>
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-80">
+        <div className="space-y-4">
+          <div>
+            <h4 className="font-semibold mb-1 flex items-center gap-2">
+              <Activity className="h-4 w-4" />
+              Network Status
+            </h4>
+            <p className="text-xs text-muted-foreground">
+              Real-time connection information
+            </p>
           </div>
-        </TooltipTrigger>
-        <TooltipContent side="bottom" className="text-xs">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <Activity className="h-3 w-3" />
-              <span className="font-medium">{config.description}</span>
+
+          <Separator />
+
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">Status</span>
+              <Badge variant="outline" className={`${current.bgColor} ${current.color} border-0`}>
+                <Icon className="h-3 w-3 mr-1" />
+                {current.label}
+              </Badge>
             </div>
-            {status.status !== 'down' && (
-              <>
-                <div className="text-muted-foreground">
-                  Latency: {status.latency}ms
+
+            {latency > 0 && (
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Latency</span>
+                <span className="text-sm font-medium">{latency}ms</span>
+              </div>
+            )}
+
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">Contract</span>
+              <Badge variant={contractConfigured ? "default" : "destructive"}>
+                {contractConfigured ? "Connected" : "Not Configured"}
+              </Badge>
+            </div>
+
+            <Separator />
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">RPC URL</span>
+              </div>
+              <p className="text-xs font-mono bg-muted p-2 rounded break-all">
+                {config.rpcUrl}
+              </p>
+            </div>
+
+            {config.contractAddress && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground">Contract Address</span>
                 </div>
-                <div className="text-muted-foreground">
-                  Contract: {status.contractConfigured ? '✓ Configured' : '✗ Not configured'}
-                </div>
-              </>
+                <p className="text-xs font-mono bg-muted p-2 rounded break-all">
+                  {config.contractAddress}
+                </p>
+              </div>
             )}
           </div>
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+
+          <Button 
+            onClick={handleRefresh} 
+            disabled={checking}
+            size="sm"
+            variant="outline"
+            className="w-full"
+          >
+            <RefreshCw className={`h-3 w-3 mr-2 ${checking ? 'animate-spin' : ''}`} />
+            Refresh Status
+          </Button>
+        </div>
+      </PopoverContent>
+    </Popover>
   )
 }

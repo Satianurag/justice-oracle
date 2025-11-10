@@ -5,7 +5,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Skeleton } from "@/components/ui/skeleton"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
-import { TrendingUp, TrendingDown, Activity, CheckCircle2, XCircle, Clock } from "lucide-react"
+import { TrendingUp, TrendingDown, Activity, CheckCircle2, XCircle, Clock, AlertTriangle } from "lucide-react"
+import { Separator } from "@/components/ui/separator"
 import { getAllDisputes, getStats, isContractConfigured } from "@/lib/genlayer"
 
 export default function AnalyticsPage() {
@@ -44,7 +45,7 @@ export default function AnalyticsPage() {
   
   const resolvedCount = disputes.filter(d => d.status === "resolved").length
   const pendingCount = disputes.filter(d => d.status === "evidence_gathering").length
-  const appealedCount = disputes.filter(d => d.status === "appealed").length
+  const appealedCount = disputes.filter(d => d.status === "resolved_pending_appeal").length
   
   const plaintiffWins = disputes.filter(d => d.verdict === "plaintiff_wins").length
   const defendantWins = disputes.filter(d => d.verdict === "defendant_wins").length
@@ -120,16 +121,16 @@ export default function AnalyticsPage() {
         
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Appeals</CardTitle>
-            <Clock className="h-4 w-4 text-yellow-600" />
+            <CardTitle className="text-sm font-medium">Pending Appeal</CardTitle>
+            <AlertTriangle className="h-4 w-4 text-amber-600" />
           </CardHeader>
           <CardContent>
             {loading ? (
               <Skeleton className="h-8 w-16" />
             ) : (
               <>
-                <div className="text-2xl font-bold">{appealedCount}</div>
-                <p className="text-xs text-muted-foreground mt-1">Under review</p>
+                <div className="text-2xl font-bold text-amber-600">{appealedCount}</div>
+                <p className="text-xs text-muted-foreground mt-1">Appeal window open</p>
               </>
             )}
           </CardContent>
@@ -247,6 +248,3 @@ export default function AnalyticsPage() {
   )
 }
 
-function Separator() {
-  return <div className="border-b" />
-}

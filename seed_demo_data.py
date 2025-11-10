@@ -1,12 +1,17 @@
 #!/usr/bin/env python3
 """
 Justice Oracle - Demo Data Seeder
-Run this in GenLayer Studio to pre-populate realistic disputes before demo
+Run this in GenLayer Studio to pre-populate realistic disputes for testing/demo
+
+NOTE: This is OPTIONAL - for testing/demo purposes only.
+The contract works perfectly fine without seeding any data.
+Use this if you want pre-populated disputes for presentations or testing.
 """
 
 # Copy-paste this entire script into GenLayer Studio after deploying the contract
 
 print("🌱 Seeding Justice Oracle with realistic demo data...")
+print("⚠️  NOTE: This is for testing/demo purposes only")
 print("=" * 60)
 
 # Dispute 1: Resolved - Freelance Web Development Dispute

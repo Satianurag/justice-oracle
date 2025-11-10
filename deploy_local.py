@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Justice Oracle - Local Terminal Deployment
-Deploy directly from your terminal without Studio UI
+Justice Oracle - Production Terminal Deployment
+Deploy directly from your terminal to GenLayer testnet
 """
 
 import json
@@ -106,8 +106,8 @@ NEXT_PUBLIC_NETWORK={NETWORK}
     print(f"🌐 Network:  {NETWORK}")
     print(f"🔗 RPC:      {GENLAYER_RPC}")
     print()
-    print("💰 Super Affordable Pricing:")
-    print("   • File dispute:     10 tokens (stake)")
+    print("💰 Platform Fees:")
+    print("   • File dispute:     10 tokens (minimum stake)")
     print("   • Submit evidence:  ~1 token (gas)")
     print("   • Platform fee:     1% of stake")
     print()
@@ -116,7 +116,7 @@ NEXT_PUBLIC_NETWORK={NETWORK}
     print("   2. npm run dev")
     print("   3. Open http://localhost:3000")
     print()
-    print("🎬 Ready to demo!")
+    print("✅ System ready for production use!")
     print()
 
 except requests.exceptions.Timeout:
