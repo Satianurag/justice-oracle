@@ -1,6 +1,7 @@
 "use client"
 
-import { Scale, FileText, Gavel, BarChart3 } from "lucide-react"
+import { Scale, Gavel, FileText, BarChart3 } from "lucide-react"
+import { NetworkStatus } from "@/components/network-status"
 import {
   Sidebar,
   SidebarContent,
@@ -62,12 +63,7 @@ export function AppSidebar() {
             <p className="font-medium">Justice Oracle v1.0</p>
             <p className="mt-1">Powered by GenLayer</p>
           </div>
-          {process.env.NEXT_PUBLIC_CONTRACT_ADDRESS && (
-            <div className="flex items-center gap-1.5">
-              <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-              <span className="text-[10px] text-green-600 font-medium">LIVE</span>
-            </div>
-          )}
+          <NetworkStatus />
         </div>
       </SidebarFooter>
     </Sidebar>

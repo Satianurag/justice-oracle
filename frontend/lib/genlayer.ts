@@ -191,6 +191,63 @@ export async function getStats() {
   }
 }
 
+export async function getDisputesPaginated(offset: number, limit: number) {
+  try {
+    const result = await callContract('get_disputes_paginated', [offset, limit])
+    
+    return {
+      success: true,
+      data: result,
+    }
+  } catch (error: any) {
+    return {
+      success: false,
+      error: error.message || 'Failed to get paginated disputes',
+    }
+  }
+}
+
+export async function checkHealth() {
+  try {
+    const startTime = Date.now()
+    const response = await fetch(RPC_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'net_version',
+        params: [],
+        id: Date.now(),
+      }),
+    })
+    const latency = Date.now() - startTime
+    
+    if (!response.ok) {
+      return {
+        success: false,
+        status: 'down',
+        latency: 0,
+      }
+    }
+    
+    // Try to fetch stats as additional health check
+    const stats = await getStats()
+    
+    return {
+      success: true,
+      status: latency < 1000 ? 'healthy' : 'degraded',
+      latency,
+      contractConfigured: stats.success && CONTRACT_ADDRESS !== '',
+    }
+  } catch (error) {
+    return {
+      success: false,
+      status: 'down',
+      latency: 0,
+    }
+  }
+}
+
 // Helper to check if contract is configured
 export function isContractConfigured(): boolean {
   return CONTRACT_ADDRESS !== '' && CONTRACT_ADDRESS !== undefined
