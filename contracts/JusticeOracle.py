@@ -1,7 +1,6 @@
 # { "Depends": "py-genlayer:test" }
 
 from genlayer import *
-from genlayer.py.storage import DynArray
 from dataclasses import dataclass
 import json
 
@@ -12,7 +11,7 @@ class Dispute:
     plaintiff: Address
     defendant: Address
     case_description: str
-    evidence_urls: DynArray  # GenLayer storage-compatible dynamic array
+    evidence_urls: str  # Serialized as "url1|||url2|||url3"
     stake_amount: u256
     status: str
     verdict: str
@@ -47,6 +46,16 @@ class JusticeOracle(gl.Contract):
         self.min_stake = u256(10)  # Only 10 tokens to file - very affordable
         self.max_evidence_urls = u256(5)  # Max 5 URLs per dispute
     
+    def _serialize_urls(self, evidence_urls: list) -> str:
+        """Convert list to pipe-delimited string for storage"""
+        return "|||".join(evidence_urls) if evidence_urls else ""
+    
+    def _deserialize_urls(self, serialized: str) -> list:
+        """Convert serialized string back to list"""
+        if not serialized:
+            return []
+        return serialized.split("|||")
+    
     @gl.public.write.payable
     def file_dispute(
         self,
@@ -80,7 +89,7 @@ class JusticeOracle(gl.Contract):
             plaintiff=gl.message.sender_address,
             defendant=defendant,
             case_description=case_description,
-            evidence_urls=evidence_urls,  # Auto-converts list to DynArray
+            evidence_urls=self._serialize_urls(evidence_urls),  # Serialize to string
             stake_amount=gl.message.value,
             status="evidence_gathering",
             verdict="",
@@ -174,9 +183,12 @@ class JusticeOracle(gl.Contract):
             "submitted_evidence": []
         }
         
+        # Deserialize URLs for iteration
+        evidence_urls = self._deserialize_urls(dispute.evidence_urls)
+        
         # Gather web evidence with resource limits
         url_count = 0
-        for url in dispute.evidence_urls:
+        for url in evidence_urls:
             if url_count >= int(self.max_evidence_urls):
                 break
             try:
@@ -399,7 +411,7 @@ Return ONLY an integer between 0 and 100, nothing else."""
             "plaintiff": dispute.plaintiff.as_hex,
             "defendant": dispute.defendant.as_hex,
             "case_description": dispute.case_description,
-            "evidence_urls": dispute.evidence_urls,
+            "evidence_urls": self._deserialize_urls(dispute.evidence_urls),  # Deserialize to list
             "stake_amount": int(dispute.stake_amount),
             "status": dispute.status,
             "verdict": dispute.verdict,
