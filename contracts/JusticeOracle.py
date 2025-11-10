@@ -1,6 +1,7 @@
 # { "Depends": "py-genlayer:test" }
 
 from genlayer import *
+from genlayer.py.storage import VectorStore
 from dataclasses import dataclass
 import json
 
@@ -11,7 +12,7 @@ class Dispute:
     plaintiff: Address
     defendant: Address
     case_description: str
-    evidence_urls: list
+    evidence_urls: tuple
     stake_amount: u256
     status: str
     verdict: str
@@ -83,7 +84,7 @@ class JusticeOracle(gl.Contract):
             plaintiff=gl.message.sender_address,
             defendant=defendant,
             case_description=case_description,
-            evidence_urls=evidence_urls,
+            evidence_urls=tuple(evidence_urls),
             stake_amount=gl.message.value,
             status="evidence_gathering",
             verdict="",
